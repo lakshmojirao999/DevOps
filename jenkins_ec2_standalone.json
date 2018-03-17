@@ -1,0 +1,360 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "AWS CloudFormation Jenkins Template to create a Stand Alone Jenkins server stack using a single EC2 instance",
+    "Parameters": {
+        "InstanceType": {
+            "Description": "Type of EC2 instance to launch for the server. Only Compute type nodes are currently specified.",
+            "Type": "String",
+            "Default": "t2.medium",
+            "ConstraintDescription": "Must be a valid EC2 instance type",
+            "AllowedValues": [
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "t2.xlarge",
+                "t2.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "m4.16xlarge",
+                "m5.large",
+                "m5.xlarge",
+                "m5.2xlarge",
+                "m5.4xlarge",
+                "m5.12xlarge",
+                "m5.24xlarge"
+            ]
+        },
+        "VpcId": {
+            "Description": "VPC ID that this stack will be launched in.",
+            "Type": "AWS::EC2::VPC::Id",
+            "AllowedPattern": "[a-z0-9-]*"
+        },
+        "SubnetId": {
+            "Description": "VPC Subnet that this stack will be launched in.",
+            "Type": "AWS::EC2::Subnet::Id",
+            "AllowedPattern": "[a-z0-9-]*"
+        },
+        "KeyName": {
+            "Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance(s).",
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "ConstraintDescription": "Must be the name of an existing EC2 KeyPair"
+        },
+        "SSHLocation": {
+            "Description": "The source IP address (/32) or source IP address range (x.x.x.x/x) that will be allowed to SSH to the EC2 instances",
+            "Type": "String",
+            "MinLength": 9,
+            "MaxLength": 18,
+            "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "Must be a valid IP CIDR range of the form x.x.x.x/x"
+        },
+        "JenkinsPort": {
+            "Description": "The Port that will be used to access Jenkins (Must be port 1024 or above, unless changing jenkins user).",
+            "Type": "Number",
+            "MinValue": 1024,
+            "MaxValue": 65535,
+            "Default": 8080
+        },
+        "InstanceTagName": {
+            "Description": "Instance Name tag that will be used to define the Name of the instance resource(s)",
+            "Type": "String",
+            "Default": "Jenkins"
+        }
+    },
+    "Mappings": {
+        "RegionMap": {
+            "us-east-1": {
+                "AMI": "ami-428aa838"
+            },
+            "us-east-2": {
+                "AMI": "ami-710e2414"
+            },
+            "us-west-1": {
+                "AMI": "ami-4a787a2a"
+            },
+            "us-west-2": {
+                "AMI": "ami-7f43f307"
+            }
+        }
+    },
+    "Resources": {
+        "JenkinsInstance": {
+            "Description": "Jenkins Standalone EC2 Instance running Java 8, and Jenkins.",
+            "Type": "AWS::EC2::Instance",
+            "Metadata": {
+                "AWS::CloudFormation::Init": {
+                    "configSets": {
+                        "default": [
+                            "mountVolume",
+                            "config",
+                            "jenkinsConfig"
+                        ]
+                    },
+                    "mountVolume": {
+                        "commands": {
+                            "01_mkdir": {
+                                "command": "sudo mkdir -p /var/lib/jenkins"
+                            },
+                            "02_fdisk": {
+                                "command": "echo -e \"o\\nn\\np\\n1\\n\\n\\nw\" | sudo fdisk /dev/sdb"
+                            },
+                            "03_wait": {
+                                "command": "sleep 3"
+                            },
+                            "04_mkfs": {
+                                "command": "sudo mkfs.ext4 /dev/sdb1"
+                            },
+                            "05_disk_label": {
+                                "command": "e2label /dev/sdb1 JENKINS"
+                            },
+                            "06_fstab": {
+                                "command": "echo -e \"LABEL=JENKINS     /var/lib/jenkins    ext4   defaults 0 0\" >> /etc/fstab"
+                            },
+                            "07_mount": {
+                                "command": "mount -a"
+                            }
+                        }
+                    },
+                    "jenkinsConfig": {
+                        "packages": {
+                            "yum": {
+                                "wget": [],
+                                "java-1.8.0-openjdk": [],
+                                "java-1.8.0-openjdk-devel": [],
+                                "net-tools": [],
+                                "git": [],
+                                "jq": []
+                            }
+                        },
+                        "commands": {
+                            "01_epel_repo": {
+                                "command": "sudo rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
+                            },
+                            "02_jenkins_repo": {
+                                "command": "sudo wget -O /etc/yum.repos.d/jenkins.repo http://pkg.jenkins-ci.org/redhat/jenkins.repo"
+                            },
+                            "03_yum_clean": {
+                                "command": "yum clean all"
+                            },
+                            "04_jenkins_key": {
+                                "command": "sudo rpm --import https://jenkins-ci.org/redhat/jenkins-ci.org.key"
+                            },
+                            "05_jenkins_dirs": {
+                                "command": "sudo mkdir -p /home/jenkins /var/lib/jenkins/.ssh /var/cache/jenkins/war /var/log/jenkins"
+                            },
+                            "06_jenkins_install": {
+                                "command": "sudo yum install -y jenkins"
+                            },
+                            "07_check_jenkins_login": {
+                                "command": "usermod -s /bin/bash jenkins"
+                            },
+                            "08_set_jenkins_port": {
+                                "command": {
+                                    "Fn::Sub": "sudo sed -i \"s/JENKINS_PORT=\\\"8080\\\"/JENKINS_PORT=\\\"${JenkinsPort}\\\"/g\" /etc/sysconfig/jenkins\n"
+                                }
+                            },
+                            "09_sshconfig": {
+                                "command": "sudo echo -e \"Host *\\n\\tStrictHostKeyChecking no\\n\" >> /var/lib/jenkins/.ssh/config"
+                            },
+                            "10_ssh_keygen": {
+                                "command": "sudo ssh-keygen -t rsa -b 2048 -C jenkins@jenkins -N \"\" -f /var/lib/jenkins/.ssh/id_rsa; sudo cat /var/lib/jenkins/.ssh/id_rsa.pub > /var/lib/jenkins/.ssh/authorized_keys"
+                            },
+                            "11_set_permissions": {
+                                "command": "sudo chown -R jenkins:jenkins /home/jenkins /var/lib/jenkins /var/cache/jenkins /var/log/jenkins; sudo chmod 0700 /var/lib/jenkins/.ssh; sudo chmod 0600 /var/lib/jenkins/.ssh/*"
+                            },
+                            "12_firewall": {
+                                "command": {
+                                    "Fn::Sub": "sudo firewall-cmd --permanent --add-service=ssh; sudo firewall-cmd --permanent --add-port='${JenkinsPort}'/tcp; sudo firewall-cmd --reload\n"
+                                }
+                            }
+                        },
+                        "services": {
+                            "sysvinit": {
+                                "jenkins": {
+                                    "enabled": true,
+                                    "ensureRunning": true
+                                }
+                            }
+                        }
+                    },
+                    "config": {
+                        "packages": {
+                            "yum": {
+                                "firewalld": []
+                            }
+                        },
+                        "commands": {
+                            "01_update": {
+                                "command": "yum -y update"
+                            }
+                        },
+                        "files": {
+                            "/etc/cfn/cfn-hup.conf": {
+                                "content": {
+                                    "Fn::Sub": "[main]\nstack=${AWS::StackId}\nregion=${AWS::Region}\ninterval=1\n"
+                                },
+                                "mode": "000400",
+                                "owner": "root",
+                                "group": "root"
+                            },
+                            "/etc/cfn/hooks.d/cfn-auto-reloader.conf": {
+                                "content": {
+                                    "Fn::Sub": "[cfn-auto-reloader-hook]\ntriggers=post.update\npath=Resources.JenkinsInstance.Metadata.AWS::CloudFormation::Init\naction=/opt/aws/bin/cfn-init --verbose --stack=${AWS::StackName} --region=${AWS::Region} --resource=JenkinsInstance\nrunas=root\n"
+                                }
+                            }
+                        },
+                        "services": {
+                            "sysvinit": {
+                                "cfn-hup": {
+                                    "enabled": true,
+                                    "ensureRunning": true,
+                                    "files": [
+                                        "/etc/cfn/cfn-hup.conf",
+                                        "/etc/cfn/hooks.d/cfn-auto-reloader.conf"
+                                    ]
+                                },
+                                "firewalld": {
+                                    "enabled": true,
+                                    "ensureRunning": true
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Properties": {
+                "BlockDeviceMappings": [
+                    {
+                        "DeviceName": "/dev/sdb",
+                        "Ebs": {
+                            "DeleteOnTermination": false,
+                            "VolumeType": "gp2",
+                            "VolumeSize": 25
+                        }
+                    }
+                ],
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "AMI"
+                    ]
+                },
+                "InstanceType": {
+                    "Ref": "InstanceType"
+                },
+                "NetworkInterfaces": [
+                    {
+                        "AssociatePublicIpAddress": true,
+                        "DeviceIndex": 0,
+                        "DeleteOnTermination": true,
+                        "SubnetId": {
+                            "Ref": "SubnetId"
+                        },
+                        "GroupSet": [
+                            {
+                                "Ref": "ServerSecurityGroup"
+                            }
+                        ]
+                    }
+                ],
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Ref": "InstanceTagName"
+                        }
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Sub": "#!/bin/bash -x\n/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource JenkinsInstance --region ${AWS::Region}\n/opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource JenkinsInstance\n"
+                    }
+                }
+            },
+            "CreationPolicy": {
+                "ResourceSignal": {
+                    "Count": "1",
+                    "Timeout": "PT15M"
+                }
+            }
+        },
+        "ServerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security Group that will be used for the Jenkins instance. Open ports 22, and the JenkinsPort",
+                "VpcId": {
+                    "Ref": "VpcId"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 22,
+                        "ToPort": 22,
+                        "CidrIp": {
+                            "Ref": "SSHLocation"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": {
+                            "Ref": "JenkinsPort"
+                        },
+                        "ToPort": {
+                            "Ref": "JenkinsPort"
+                        },
+                        "CidrIp": {
+                            "Ref": "SSHLocation"
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "TemplateID": {
+            "Description": "Jenkins Single Server Template",
+            "Value": "Jenkins Single Server Template"
+        },
+        "PublicIp": {
+            "Description": "The Public IP address of the EC2 Instance",
+            "Value": {
+                "Fn::GetAtt": [
+                    "JenkinsInstance",
+                    "PublicIp"
+                ]
+            }
+        },
+        "ServerAddress": {
+            "Description": "The public DNS address for this instance",
+            "Value": {
+                "Fn::GetAtt": [
+                    "JenkinsInstance",
+                    "PublicDnsName"
+                ]
+            }
+        },
+        "JenkinsPass": {
+            "Description": "Jenkins One Time Install Password",
+            "Value": {
+                "Fn::Sub": "ssh ec2-user@${JenkinsInstance.PublicIp} sudo cat /var/lib/jenkins/secrets/initialAdminPassword"
+            }
+        },
+        "JenkinsKey": {
+            "Description": "Jenkins SSH Public Key",
+            "Value": {
+                "Fn::Sub": "ssh ec2-user@${JenkinsInstance.PublicIp} sudo cat /var/lib/jenkins/.ssh/id_rsa.pub"
+            }
+        }
+    }
+}

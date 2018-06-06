@@ -1,0 +1,311 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "AWS CloudFormation Dev Lambda-API Integration",
+    "Parameters":{
+		"pLambdaFuncHandler":{  
+         "Type":"String",
+         "Description":"First Lambda Function Handler",
+         "AllowedValues":[  
+            "index.my_handler"
+         ],
+         "Default":"index.my_handler"
+      },
+		"pAPIGatewayName":{  
+         "Type":"String",
+         "Description":"Name of the API Gateway",
+         "ConstraintDescription":"must only contain upper and lower case letters, numbers and hyphens (-) .",
+         "Default":"SanofiApiGateway01"
+      },
+       "pAPIGatewayStage":{  
+         "Type":"String",
+         "Description":"Stage for API Gateway deployment",
+         "AllowedValues":[  
+            "SanofiTest",
+            "SanofiProd"
+         ],
+         "Default":"SanofiTest"
+      }
+	
+	},
+	"Resources": {
+        "lambdaExecutionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": ["lambda.amazonaws.com"]
+                            },
+                            "Action": ["sts:AssumeRole"]
+                        }
+                    ]
+                },
+                "Path": "/"
+            }
+        },
+        "lambdaExecutionPolicy": {
+            "DependsOn": [
+                "lambdaExecutionRole"
+            ],
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "LambdaPostgreSqlLogsRolePolicy",
+                "Roles": [
+                    {"Ref": "lambdaExecutionRole"}
+                ],
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": ["logs:*"],
+                            "Resource": ["arn:aws:logs:*:*:*"]
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+								"rds:*",
+								"application-autoscaling:DeleteScalingPolicy",
+								"application-autoscaling:DeregisterScalableTarget",
+								"application-autoscaling:DescribeScalableTargets",
+								"application-autoscaling:DescribeScalingActivities",
+								"application-autoscaling:DescribeScalingPolicies",
+								"application-autoscaling:PutScalingPolicy",
+								"application-autoscaling:RegisterScalableTarget",
+								"cloudwatch:DescribeAlarms",
+								"cloudwatch:GetMetricStatistics",
+								"cloudwatch:PutMetricAlarm",
+								"cloudwatch:DeleteAlarms",
+								"ec2:DescribeAccountAttributes",
+								"ec2:DescribeAvailabilityZones",
+								"ec2:DescribeInternetGateways",
+								"ec2:DescribeSecurityGroups",
+								"ec2:DescribeSubnets",
+								"ec2:DescribeVpcAttribute",
+								"ec2:DescribeVpcs",
+								"sns:ListSubscriptions",
+								"sns:ListTopics",
+								"sns:Publish",
+								"logs:DescribeLogStreams",
+								"logs:GetLogEvents"
+
+                            ],
+                            "Resource": ["*"]
+                        }
+                    ]
+                }
+            }
+        },
+       "SanofiLambda01Permission":{  
+         "Type":"AWS::Lambda::Permission",
+         "Properties":{  
+            "FunctionName":{  
+               "Fn::GetAtt":[  
+                  "Sanofilambda01",
+                  "Arn"
+               ]
+            },
+            "Action":"lambda:InvokeFunction",
+            "Principal":"apigateway.amazonaws.com",
+            "SourceArn":{  
+               "Fn::Join":[  
+                  "",
+                  [  
+                     "arn:aws:execute-api:",
+                     {  
+                        "Ref":"AWS::Region"
+                     },
+                     ":",
+                     {  
+                        "Ref":"AWS::AccountId"
+                     },
+                     ":",
+                     {  
+                        "Ref":"SanofiApiGateway"
+                     },
+                     "/*"
+                  ]
+               ]
+            }
+         }
+      },		
+        "Sanofilambda01": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": [
+                "lambdaExecutionRole",
+                "lambdaExecutionPolicy"
+            ],
+            "Properties": {
+                "Code": {
+                    "S3Bucket": "sanofi-cdo-insight-cognito",
+                    "S3Key": "sanofi-dev/sanofi-dev1.zip"
+                },
+                "Role": {
+                    "Fn::GetAtt": ["lambdaExecutionRole", "Arn"]
+                },
+                "Timeout": 60,
+                "Handler": {
+					"Ref":"pLambdaFuncHandler"
+				},
+                "Runtime": "python3.6",
+                "MemorySize": 128
+            }
+        },
+        "SanofiApiGateway":{  
+         "Type":"AWS::ApiGateway::RestApi",
+         "Properties":{  
+            "Name":{  
+               "Ref":"pAPIGatewayName"
+            },
+            "Body":{  
+               "swagger":"2.0",
+               "info":{  
+                  "version":"2018-05-07T06:08:39Z",
+                  "title":{  
+                     "Ref":"pAPIGatewayName"
+                  }
+               },
+               "basePath":{  
+                  "Ref":"pAPIGatewayStage"
+               },
+               "schemes":[  
+                  "https"
+               ],
+               "paths":{  
+                  "/getuserreport":{  
+                     "post":{  
+                        "consumes":[  
+                           "application/json"
+                        ],
+                        "produces":[  
+                           "application/json"
+                        ],
+                        "responses":{  
+                           "200":{  
+                              "description":"200 response",
+                              "schema":{  
+                                 "$ref":"#/definitions/Empty"
+                              }
+                           }
+                        },
+                        "security":[  
+                           {  
+                              "api_key":[  
+
+                              ]
+                           }
+                        ],
+                        "x-amazon-apigateway-integration":{  
+                           "uri":{  
+                              "Fn::Join":[  
+                                 "",
+                                 [  
+                                    "arn:aws:apigateway:",
+                                    {  
+                                       "Ref":"AWS::Region"
+                                    },
+                                    ":lambda:path/2015-03-31/functions/",
+                                    {  
+                                       "Fn::GetAtt":[  
+                                          "Sanofilambda01",
+                                          "Arn"
+                                       ]
+                                    },
+                                    "/invocations"
+                                 ]
+                              ]
+                           },
+                           "responses":{  
+                              "default":{  
+                                 "statusCode":"200"
+                              }
+                           },
+                           "passthroughBehavior":"when_no_match",
+                           "httpMethod":"POST",
+                           "requestTemplates":{  
+                              "application/json":"{\r\n    \"key1\": $input.json('key1')\r\n}"
+                           },
+                           "contentHandling":"CONVERT_TO_TEXT",
+                           "type":"aws"
+                        }
+                     }
+                  }
+                },
+               "securityDefinitions":{  
+                  "api_key":{  
+                     "type":"apiKey",
+                     "name":"x-api-key",
+                     "in":"header"
+                  }
+               },
+               "definitions":{  
+                  "Empty":{  
+                     "type":"object",
+                     "title":"Empty Schema"
+                  }
+               }
+            }
+         }
+		},		
+	    "SanofiApiDeployment":{  
+            "Type":"AWS::ApiGateway::Deployment",
+            "Properties":{  
+               "RestApiId":{  
+                  "Ref":"SanofiApiGateway"
+               },
+               "Description":"Sanofi Deployment"
+            }
+         },
+		"SanofiApiStage":{  
+            "Type":"AWS::ApiGateway::Stage",
+            "Properties":{  
+               "DeploymentId":{  
+                  "Ref":"SanofiApiDeployment"
+               },
+               "RestApiId":{  
+                  "Ref":"SanofiApiGateway"
+               },
+               "StageName":{  
+                  "Ref":"pAPIGatewayStage"
+               }
+            }
+         },
+		"SanofiUsagePlan":{  
+            "Type":"AWS::ApiGateway::UsagePlan",
+            "Properties":{  
+               "ApiStages":[  
+                  {  
+                     "ApiId":{  
+                        "Ref":"SanofiApiGateway"
+                     },
+                     "Stage":{  
+                        "Ref":"SanofiApiStage"
+                     }
+                  }
+               ],
+               "Quota":{  
+                  "Limit":50000,
+                  "Period":"MONTH"
+               },
+               "Throttle":{  
+                  "BurstLimit":2000,
+                  "RateLimit":1200
+               },
+               "UsagePlanName": "Plan_Gold"
+            }
+         },
+		"SanofiUsagePlanKey":{  
+            "Type":"AWS::ApiGateway::UsagePlanKey",
+            "Properties":{  
+               "KeyId":"eh1pzdiyz1",
+               "KeyType":"API_KEY",
+               "UsagePlanId":{  
+                  "Ref":"SanofiUsagePlan"
+               }
+            }
+         }	
+    }
+}

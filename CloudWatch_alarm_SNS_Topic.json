@@ -1,0 +1,164 @@
+{
+                "AWSTemplateFormatVersion": "2010-09-09",
+                "Parameters": {
+                                "FplEnvironmentName":{  
+                                                "Type":"String",
+                                                "Description":"Wire down Environment",
+                                                "AllowedValues":[ "TEST", "PROD"]
+                                },             
+                                "FplLambdaFuncAlarmName01Prtr":{  
+                                 "Type":"String",
+                                "Description":"Name of the First Lambda Function",
+                                "Default":"ReportWiredownFunction"
+                                },
+                                "FplLambdaFuncAlarmName02Prtr":{  
+                                 "Type":"String",
+                                "Description":"Name of the Second Lambda Function",
+                                "Default":"GetUserReportsFunction"
+                                },
+                                "FplLambdaFuncAlarmName03Prtr":{  
+                                 "Type":"String",
+                                "Description":"Name of the Third Lambda Function",
+                                "Default":"GetAllWiredownReportsFunction"
+                                },
+                                "FplLambdaFuncAlarmName04Prtr":{  
+                                 "Type":"String",
+                                "Description":"Name of the Fourth Lambda Function",
+                                "Default":"ImageRekognitionFunction"
+                                },
+                                                                                                
+                                "FplDynamoDBTableNamePrtr":{  
+                                 "Type":"String",
+                                "Description":"Name of the DynamoDBTable Name TEST or PROD",
+                                "AllowedValues":[ "FplTestTable", "FplProdTable"]
+                                },
+                                
+                                "FplAPIGatewayNamePrtr01":{  
+                                 "Type":"String",
+                                "Description":"Name of the API Gateway Name 01",
+                                "AllowedValues":[ "FplApiGateway-01", "FplApiGateway-01"]
+                                },
+                                
+                                "FplAPIGatewayNamePrtr02":{  
+                                 "Type":"String",
+                                "Description":"Name of the API Gateway Name 02",
+                                "AllowedValues":[ "FplApiGateway-02", "FplApiGateway-02"]
+                                },
+                                
+                                "LambdaMetric01Name": {
+                                                "Description": "CloudWatch Lambda Metric Name.",
+                                                "Type": "String",
+                                                "Default": "Errors"
+                                },
+                                "LambdaMetric02Name": {
+                                                "Description": "CloudWatch Lambda Metric Name.",
+                                                "Type": "String",
+                                                "Default": "Invocations"
+                                },
+                                
+                                "DynamoDBMetric01Name": {
+                                                "Description": "CloudWatch DynamoDb Metric Name.",
+                                                "Type": "String",
+                                                "Default": "ConsumedReadCapacityUnits"
+                                },
+                                
+                                "DynamoDBMetric02Name": {
+                                                "Description": "CloudWatch DynamoDb Metric Name.",
+                                                "Type": "String",
+                                                "Default": "ConsumedWriteCapacityUnits"
+                                },
+                    "DynamoDBMetric03Name": {
+                                                "Description": "CloudWatch DynamoDb Metric Name.",
+                                                "Type": "String",
+                                                "Default": "ProvisionedReadCapacityUnits"
+                                },
+                                
+                                "DynamoDBMetric04Name": {
+                                                "Description": "CloudWatch DynamoDb Metric Name.",
+                                                "Type": "String",
+                                                "Default": "ProvisionedWriteCapacityUnits"
+                                },
+                    "DynamoDBMetric05Name": {
+                                                "Description": "CloudWatch DynamoDb Metric Name.",
+                                                "Type": "String",
+                                                "Default": "ThrottledRequests"
+                                },
+                    "DynamoDBMetric06Name": {
+                                                "Description": "CloudWatch DynamoDb Metric Name.",
+                                                "Type": "String",
+                                                "Default": "ReadThrottleEvents "
+                                },
+                                
+                                "DynamoDBMetric07Name": {
+                                                "Description": "CloudWatch DynamoDb Metric Name.",
+                                                "Type": "String",
+                                                "Default": "WriteThrottleEvents"
+                                },
+                                
+                                "APIgatewaymetric01Name": {
+                                                "Description": "CloudWatch API Gateway Metric Name.",
+                                                "Type": "String",
+                                                "Default": "4XXError"
+                                },
+                                
+                                "APIgatewaymetric02Name": {
+                                                "Description": "CloudWatch API Gateway Metric Name.",
+                                                "Type": "String",
+                                                "Default": "5XXError"
+                                },
+                                "StatistcPrtr": {
+                                                "Description": "CloudWatch Alarm Statistic values Ex:Sum, Average, Minimum, Maximum, Sample Count.",
+                                                "Type": "String",
+                                                "Default": "Sum"
+                                                
+                                },
+
+        "SNSSubscriptionEmail": {
+            "Description": "Email Address for sending SNS notifications for CodeCommit",
+            "Default": "lakshmoji.raoy@cognizant.com",
+            "Type": "String"
+        }                     
+                },
+                
+                "Resources": {
+                
+                                "FplWDSNSTopic": {
+                                                                "Type": "AWS::SNS::Topic",
+                                                                "Properties": {
+                                                                                "Subscription": [
+                                                                                                {
+                                                                                                                "Endpoint": {
+                                                                                                                                "Ref": "SNSSubscriptionEmail"
+                                                                                                                },
+                                                                                                                "Protocol": "email"
+                                                                                                }                                                                                              
+                                                                                ],
+                                                                                "TopicName" : {"Fn::Join": ["",[{"Ref": "FplEnvironmentName"},"_","WireDown_Notifications"]]}  
+                                                                }                                                              
+                                },                                             
+                                "LambdaAlarm101": {
+                                                "Type": "AWS::CloudWatch::Alarm",
+                                                "Properties": {
+                                                                "ActionsEnabled": "true",
+                                                                "AlarmActions": [{ "Ref": "FplWDSNSTopic"  }],
+                                                                "AlarmDescription": "ReportWiredownFunction_Errors",
+                                                                "AlarmName": {"Fn::Join": ["",[{"Ref": "FplEnvironmentName"},"_",{"Ref": "FplLambdaFuncAlarmName01Prtr"},"_",{"Ref":"LambdaMetric01Name"}]]},
+                                                                "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+                                                                "Dimensions": [{
+                                                                                "Name": "Name",
+                                                                                "Value": {"Fn::Join": ["",[{"Ref": "FplEnvironmentName"},"_",{"Ref": "FplLambdaFuncAlarmName01Prtr"}]]}
+                                                                }],
+                                                                "EvaluationPeriods": "1",
+                                                                "MetricName":{"Ref":"LambdaMetric01Name"},
+                                                                "Namespace": "AWS/Lambda",
+                                                                "Period": "60",
+                                                                "Statistic": {"Ref":"StatistcPrtr"},
+                                                                "Threshold": "1",
+                                                                "TreatMissingData": "missing",
+                                                                "Unit": "Count"
+                                                },
+                                                "DependsOn" : "FplWDSNSTopic"
+                                } 
+                }
+}
+                                

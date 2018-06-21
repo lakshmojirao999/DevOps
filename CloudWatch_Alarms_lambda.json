@@ -1,0 +1,158 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Parameters": {
+		"AlarmName": {
+			"Description": "CloudWatch Alarm Name.",
+			"Type": "CommaDelimitedList",
+			"Default": "sns_NumberOfMessagesPublished_Alarm, Lambda_PublishSize_Alarm, Lambda_NumberOfNotificationsFailed_Alarm "
+		},
+
+		"MetricName": {
+			"Description": "CloudWatch SNS Metric Name.",
+			"Type": "CommaDelimitedList",
+			"Default": "NumberOfMessagesPublished, PublishSize, NumberOfNotificationsFailed"
+		},
+
+		"topicName": {
+			"Description": "CloudWatch sns Metric Name.",
+			"Type": "String",
+			"Default": "manu_topic"
+		},
+
+		"SNSARN": {
+			"Description": "ARN for SNS topic",
+			"Type": "String",
+			"Default": "arn:aws:sns:us-west-2:500452054617:manu_topic"
+		}
+	},
+
+	"Resources": {
+		"LambdaAlarm01": {
+			"Type": "AWS::CloudWatch::Alarm",
+			"Properties": {
+				"ActionsEnabled": "true",
+				"AlarmActions": [{
+					"Ref": "SNSARN"
+				}],
+				"AlarmDescription": "metrics for SNS",
+				"AlarmName": {
+					"Fn::Select": ["0", {
+						"Ref": "AlarmName"
+					}]
+				},
+				"ComparisonOperator": "GreaterThanOrEqualToThreshold",
+				"Dimensions": [{
+					"Name": "Name",
+					"Value": {
+						"Ref": "topicName"
+					}
+				}],
+				"EvaluationPeriods": "1",
+				"MetricName": {
+					"Fn::Select": ["0", {
+						"Ref": "MetricName"
+					}]
+				},
+				"Namespace": "AWS/SNS",
+				"Period": "60",
+				"Statistic": "Average",
+				"Threshold": "1000",
+				"TreatMissingData": "missing",
+				"Unit": "Count"
+			}
+		},
+
+		"LambdaAlarm02": {
+			"Type": "AWS::CloudWatch::Alarm",
+			"Properties": {
+				"ActionsEnabled": "true",
+				"AlarmActions": [{
+					"Ref": "SNSARN"
+				}],
+				"AlarmDescription": "metrics for SNS",
+				"AlarmName": {
+					"Fn::Select": ["1", {
+						"Ref": "AlarmName"
+					}]
+				},
+				"ComparisonOperator": "GreaterThanOrEqualToThreshold",
+				"Dimensions": [{
+					"Name": "Name",
+					"Value": {
+						"Ref": "topicName"
+					}
+				}],
+				"EvaluationPeriods": "1",
+				"MetricName": {
+					"Fn::Select": ["1", {
+						"Ref": "MetricName"
+					}]
+				},
+				"Namespace": "AWS/SNS",
+				"Period": "60",
+				"Statistic": "Average",
+				"Threshold": "1",
+				"TreatMissingData": "missing",
+				"Unit": "Bytes"
+			}
+		},
+
+		"LambdaAlarm03": {
+			"Type": "AWS::CloudWatch::Alarm",
+			"Properties": {
+				"ActionsEnabled": "true",
+				"AlarmActions": [{
+					"Ref": "SNSARN"
+				}],
+				"AlarmDescription": "metrics for SNS",
+				"AlarmName": {
+					"Fn::Select": ["2", {
+						"Ref": "AlarmName"
+					}]
+				},
+				"ComparisonOperator": "GreaterThanOrEqualToThreshold",
+				"Dimensions": [{
+					"Name": "Name",
+					"Value": {
+						"Ref": "topicName"
+					}
+				}],
+				"EvaluationPeriods": "1",
+				"MetricName": {
+					"Fn::Select": ["2", {
+						"Ref": "MetricName"
+					}]
+				},
+				"Namespace": "AWS/SNS",
+				"Period": "60",
+				"Statistic": "Average",
+				"Threshold": "1",
+				"TreatMissingData": "missing",
+				"Unit": "Count"
+			}
+		}
+
+
+	},
+
+	"Outputs": {
+		"LambdaAlarm01Name": {
+			"Value": {
+				"Ref": "LambdaAlarm01"
+			}
+		},
+
+		"LambdaAlarm02Name": {
+			"Value": {
+				"Ref": "LambdaAlarm02"
+			}
+		},
+
+		"LambdaAlarm03Name": {
+			"Value": {
+				"Ref": "LambdaAlarm03"
+			}
+		}
+
+	}
+}
